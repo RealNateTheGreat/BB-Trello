@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, Home, LogIn, Megaphone, Menu, Shield, X } from 'lucide-react';
+import { Award, FolderKanban, Home, LogIn, Megaphone, Menu, Shield, X } from 'lucide-react';
 import { FaDiscord } from 'react-icons/fa';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,6 +66,11 @@ const TopNav: React.FC = () => {
             <span>Broken Blade Discord</span>
           </button>
 
+          <Link to="/boards" className={`${navButtonClass} min-w-[8.5rem]`} style={navButtonStyle}>
+            <FolderKanban className="w-4 h-4" />
+            <span>Boards</span>
+          </Link>
+
           <Link to="/credits" className={`${navButtonClass} min-w-[8.5rem]`} style={navButtonStyle}>
             <Award className="w-4 h-4" />
             <span>Credits</span>
@@ -79,13 +84,6 @@ const TopNav: React.FC = () => {
             <Megaphone className="w-4 h-4" />
             <span>Announcements</span>
           </button>
-
-          {user?.dashboard_access && (
-            <Link to="/management" className={`${navButtonClass} min-w-[10rem]`} style={navButtonStyle}>
-              <Shield className="w-4 h-4" />
-              <span>Management</span>
-            </Link>
-          )}
 
           {user ? (
             <UserDropdown />
@@ -149,6 +147,16 @@ const TopNav: React.FC = () => {
               </button>
 
               <Link
+                to="/boards"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={navButtonClass + ' w-full justify-start'}
+                style={navButtonStyle}
+              >
+                <FolderKanban className="w-5 h-5" />
+                <span>Boards</span>
+              </Link>
+
+              <Link
                 to="/credits"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={navButtonClass + ' w-full justify-start'}
@@ -169,18 +177,6 @@ const TopNav: React.FC = () => {
                 <Megaphone className="w-5 h-5" />
                 <span>Announcements</span>
               </button>
-
-              {user?.dashboard_access && (
-                <Link
-                  to="/management"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={navButtonClass + ' w-full justify-start'}
-                  style={navButtonStyle}
-                >
-                  <Shield className="w-5 h-5" />
-                  <span>Management</span>
-                </Link>
-              )}
 
               {user ? (
                 <div className="pt-2 border-t border-red-900/40">

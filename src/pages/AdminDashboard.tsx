@@ -9,7 +9,6 @@ import WebLogosManager from '../components/admin/WebLogosManager';
 import { useAuth, User } from '../contexts/AuthContext';
 import { hasPermission } from '../lib/roles';
 import { supabase } from '../lib/supabase';
-import brokenBladeBanner from '../images/broken-blade-banner.png';
 
 interface Category {
   id: string;
@@ -252,11 +251,36 @@ const ManagementDashboard: React.FC = () => {
           </div>
         </div>
 
-        <section className="relative mb-8 overflow-hidden rounded-lg border-2 shadow-2xl">
-          <img src={brokenBladeBanner} alt="Broken Blade management" className="h-44 w-full object-cover object-center md:h-64" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-black/10" />
-          <div className="absolute bottom-0 left-0 p-6 md:p-8">
-            <h2 className="text-3xl font-black text-stone-50 md:text-5xl">Control Room</h2>
+        <section className="mb-8 overflow-hidden rounded-lg border-2 p-6 shadow-2xl bb-panel md:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200">Admin Workbench</p>
+              <h2 className="mt-2 text-3xl font-black text-stone-50 md:text-5xl">Control Room</h2>
+            </div>
+            <div
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border-2"
+              style={{ backgroundColor: 'rgba(127, 29, 29, 0.24)', borderColor: 'rgba(239, 68, 68, 0.56)' }}
+            >
+              <Shield className="h-8 w-8 text-red-100" />
+            </div>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Rank</p>
+              <p className="mt-2 text-lg font-black text-stone-50">{user.role_name}</p>
+            </div>
+            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Boards</p>
+              <p className="mt-2 text-2xl font-black text-stone-50">{categories.length}</p>
+            </div>
+            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Posts</p>
+              <p className="mt-2 text-2xl font-black text-stone-50">{pages.length}</p>
+            </div>
+            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Staff</p>
+              <p className="mt-2 text-2xl font-black text-stone-50">{users.length}</p>
+            </div>
           </div>
         </section>
 

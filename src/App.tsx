@@ -5,6 +5,8 @@ import TopNav from './components/TopNav';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
 import Credits from './pages/Credits';
+import Boards from './pages/Boards';
+import BoardDetail from './pages/BoardDetail';
 import ManagementDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
 import brokenBladeBanner from './images/broken-blade-banner.png';
@@ -34,6 +36,8 @@ const App: React.FC = () => {
           <TopNav />
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/boards" element={<Boards />} />
+            <Route path="/boards/:slug" element={<BoardDetail />} />
             <Route path="/credits" element={<Credits />} />
             <Route path="/management" element={<ManagementDashboard />} />
             <Route path="/admin" element={<Navigate to="/management" replace />} />

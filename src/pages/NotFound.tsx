@@ -1,18 +1,15 @@
 import React from 'react';
 import { Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import brokenBladeBanner from '../images/broken-blade-banner.png';
 
 const NotFound: React.FC = () => {
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-8">
       <div className="w-full max-w-2xl text-center">
-        <div className="relative mb-8 overflow-hidden rounded-lg border-2 shadow-2xl">
-          <img src={brokenBladeBanner} alt="Broken Blade" className="h-56 w-full object-cover object-center" />
-          <div className="absolute inset-0 bg-black/55" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <h1 className="text-7xl font-black text-stone-50">404</h1>
-          </div>
+        <div className="mb-8 overflow-hidden rounded-lg border-2 p-8 shadow-2xl bb-panel">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200">Broken Blade</p>
+          <h1 className="mt-3 text-7xl font-black text-stone-50">404</h1>
+          <div className="mx-auto mt-5 h-1 w-24 rounded-full bg-red-500/70" />
         </div>
 
         <div className="rounded-lg border-2 p-8 shadow-xl bb-panel">

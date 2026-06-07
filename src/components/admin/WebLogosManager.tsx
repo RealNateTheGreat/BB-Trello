@@ -13,6 +13,8 @@ interface WebLogo {
   created_at: string;
 }
 
+type WebLogoType = WebLogo['type'];
+
 interface WebLogosManagerProps {
   webLogos: WebLogo[];
   onRefresh: () => void;
@@ -314,7 +316,7 @@ const LogoEditModal: React.FC<LogoEditModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     name: logo?.name || '',
-    type: logo?.type || 'banner' as 'banner' | 'loading' | 'favicon' | 'logo',
+    type: (logo?.type || 'banner') as WebLogoType,
     image_url: logo?.image_url || '',
     is_active: logo?.is_active ?? false,
     description: logo?.description || ''
@@ -389,7 +391,7 @@ const LogoEditModal: React.FC<LogoEditModalProps> = ({
               </label>
               <select
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as WebLogoType })}
                 className="w-full px-4 py-3 rounded-lg border-2 text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 style={{ 
                   backgroundColor: 'rgba(74, 55, 40, 0.3)', 

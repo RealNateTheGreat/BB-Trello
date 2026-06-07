@@ -3,7 +3,6 @@ import { ArrowLeft, Crown, Shield, Sparkles, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_DEFINITIONS } from '../lib/roles';
-import brokenBladeBanner from '../images/broken-blade-banner.png';
 
 interface Credit {
   id: string;
@@ -92,20 +91,15 @@ const Credits: React.FC = () => {
           </div>
         </div>
 
-        <section className="relative mb-10 overflow-hidden rounded-lg border-2 shadow-2xl">
-          <img
-            src={brokenBladeBanner}
-            alt="Broken Blade credits"
-            className="h-56 w-full object-cover object-center md:h-80"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent" />
-          <div className="absolute bottom-0 left-0 max-w-2xl p-6 md:p-8">
-            <div className="mb-4 inline-flex items-center rounded-lg border border-red-500/40 bg-red-950/35 px-3 py-2 text-red-100">
-              <Star className="mr-2 h-4 w-4" />
-              <span className="text-sm font-semibold">Hall of Steel</span>
-            </div>
-            <h2 className="text-3xl font-black text-stone-50 md:text-5xl">The Names Behind The Blade</h2>
+        <section className="mb-10 rounded-lg border-2 p-6 shadow-2xl bb-panel md:p-8">
+          <div className="inline-flex items-center rounded-lg border border-red-500/40 bg-red-950/25 px-3 py-2 text-red-100">
+            <Star className="mr-2 h-4 w-4" />
+            <span className="text-sm font-semibold">Hall of Steel</span>
           </div>
+          <h2 className="mt-5 text-3xl font-black text-stone-50 md:text-5xl">The Names Behind The Blade</h2>
+          <p className="mt-4 max-w-3xl text-stone-200">
+            A roll call for the people shaping Broken Blade, with ranks shown cleanly and private identifiers kept out of sight.
+          </p>
         </section>
 
         {loading ? (

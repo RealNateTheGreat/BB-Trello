@@ -3,16 +3,6 @@ import { supabase } from '../lib/supabase';
 import brokenBladeBanner from '../images/broken-blade-banner.png';
 import webLogo from '../images/weblogo.png';
 
-interface WebLogo {
-  id: string;
-  name: string;
-  type: 'banner' | 'loading' | 'favicon' | 'logo';
-  image_url: string;
-  is_active: boolean;
-  description?: string;
-  created_at: string;
-}
-
 export const useWebLogos = () => {
   const [webLogos, setWebLogos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);

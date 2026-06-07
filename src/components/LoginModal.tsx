@@ -21,7 +21,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
     try {
       await loginWithDiscord();
-    } catch (_err) {
+    } catch {
       setError('Discord sign-in failed. Please try again.');
       setIsSubmitting(false);
     }

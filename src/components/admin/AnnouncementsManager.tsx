@@ -13,6 +13,8 @@ interface Announcement {
   created_at: string;
 }
 
+type AnnouncementType = Announcement['type'];
+
 interface AnnouncementsManagerProps {
   announcements: Announcement[];
   onRefresh: () => void;
@@ -251,7 +253,7 @@ const AnnouncementEditModal: React.FC<AnnouncementEditModalProps> = ({
   const [formData, setFormData] = useState({
     title: announcement?.title || '',
     content: announcement?.content || '',
-    type: announcement?.type || 'info' as 'info' | 'warning' | 'success' | 'error',
+    type: (announcement?.type || 'info') as AnnouncementType,
     active: announcement?.active ?? true,
     priority: announcement?.priority || 0,
     expires_at: announcement?.expires_at || ''
@@ -344,7 +346,7 @@ const AnnouncementEditModal: React.FC<AnnouncementEditModalProps> = ({
               </label>
               <select
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as AnnouncementType })}
                 className="w-full px-4 py-3 rounded-lg border-2 text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 style={{ 
                   backgroundColor: 'rgba(74, 55, 40, 0.3)', 
