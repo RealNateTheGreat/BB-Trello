@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/assets/weblogo-D6VQhnKK.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Broken Blade</title>
+    <script type="module" crossorigin src="/assets/index-CQV8-qbW.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DcpR5PZx.css">
+  </head>
+  <body class="bg-black">
+    <div id="root"></div>
+    <script>
+      // Dynamic favicon update based on web logos
+      async function updateFavicon() {
+        try {
+          const response = await fetch('/api/web-logos/favicon');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.favicon_url) {
+              const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+              link.type = 'image/png';
+              link.rel = 'icon';
+              link.href = data.favicon_url;
+              document.getElementsByTagName('head')[0].appendChild(link);
+            }
+          }
+        } catch (error) {
+          console.log('Using default favicon');
+        }
+      }
+      
+      // Update favicon on page load
+      updateFavicon();
+    </script>
+  </body>
+</html>
