@@ -51,7 +51,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     role_name: 'Web Admin',
     role_level: 70,
     permissions: FULL_PERMISSIONS,
-    description: 'Full management access, including invites and role assignment below their own rank.',
+    description: 'Full management access, including user access and role assignment below their own rank.',
     full_access: true
   },
   {

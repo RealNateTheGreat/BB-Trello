@@ -29,18 +29,6 @@ interface Page {
   created_by?: string;
 }
 
-interface Invite {
-  id: string;
-  discord_id: string;
-  display_name?: string;
-  avatar_url?: string;
-  role_name: string;
-  role_level: number;
-  permissions: string[];
-  status: 'pending' | 'accepted' | 'revoked';
-  created_at?: string;
-}
-
 interface Credit {
   id: string;
   discord_id?: string;
@@ -74,7 +62,6 @@ const ManagementDashboard: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,14 +124,12 @@ const ManagementDashboard: React.FC = () => {
         categoriesResult,
         pagesResult,
         usersResult,
-        invitesResult,
         creditsResult,
         announcementsResult
       ] = await Promise.all([
         supabase.from('categories').select('*').order('name'),
         supabase.from('pages').select('*').order('title'),
         supabase.from('users').select('*').order('role_level', { ascending: false }).order('username'),
-        supabase.from('user_invites').select('*').order('created_at', { ascending: false }),
         supabase.from('credits').select('*').order('sort_order', { ascending: true }).order('display_name'),
         supabase.from('announcements').select('*').order('priority', { ascending: true }).order('created_at', { ascending: false })
       ]);
@@ -152,14 +137,12 @@ const ManagementDashboard: React.FC = () => {
       if (categoriesResult.error) console.error('Categories fetch error:', categoriesResult.error);
       if (pagesResult.error) console.error('Pages fetch error:', pagesResult.error);
       if (usersResult.error) console.error('Users fetch error:', usersResult.error);
-      if (invitesResult.error) console.error('Invites fetch error:', invitesResult.error);
       if (creditsResult.error) console.error('Credits fetch error:', creditsResult.error);
       if (announcementsResult.error) console.error('Announcements fetch error:', announcementsResult.error);
 
       setCategories((categoriesResult.data || []) as Category[]);
       setPages((pagesResult.data || []) as Page[]);
       setUsers((usersResult.data || []) as User[]);
-      setInvites((invitesResult.data || []) as Invite[]);
       setCredits((creditsResult.data || []) as Credit[]);
       setAnnouncements((announcementsResult.data || []) as Announcement[]);
     } catch (error) {
@@ -260,7 +243,7 @@ const ManagementDashboard: React.FC = () => {
         )}
 
         {activeTab === 'users' && (
-          <UsersManager users={users} invites={invites} currentUser={user} onRefresh={fetchData} />
+          <UsersManager users={users} currentUser={user} onRefresh={fetchData} />
         )}
 
         {activeTab === 'credits' && (

@@ -51,41 +51,6 @@ export type Database = {
           updated_at?: string;
         };
       };
-      user_invites: {
-        Row: {
-          id: string;
-          discord_id: string;
-          email?: string;
-          display_name?: string;
-          avatar_url?: string;
-          role_name: string;
-          role_level: number;
-          permissions: string[];
-          status: 'pending' | 'accepted' | 'revoked';
-          invited_by?: string;
-          accepted_by?: string;
-          accepted_at?: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          discord_id: string;
-          email?: string;
-          display_name?: string;
-          avatar_url?: string;
-          role_name: string;
-          role_level: number;
-          permissions: string[];
-          status?: 'pending' | 'accepted' | 'revoked';
-          invited_by?: string;
-          accepted_by?: string;
-          accepted_at?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database['public']['Tables']['user_invites']['Insert']>;
-      };
       categories: {
         Row: {
           id: string;

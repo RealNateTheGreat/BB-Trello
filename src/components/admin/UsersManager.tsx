@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit3, Save, Shield, Trash2, UserPlus, X } from 'lucide-react';
+import { Edit3, Save, Shield, UserPlus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../contexts/AuthContext';
 import {
@@ -12,32 +12,17 @@ import {
   normalizeDiscordId
 } from '../../lib/roles';
 import ImageUpload from '../ImageUpload';
-import ConfirmModal from '../ui/ConfirmModal';
 import CustomSelect, { SelectOption } from '../ui/CustomSelect';
-
-interface Invite {
-  id: string;
-  discord_id: string;
-  display_name?: string;
-  avatar_url?: string;
-  role_name: string;
-  role_level: number;
-  permissions: string[];
-  status: 'pending' | 'accepted' | 'revoked';
-  created_at?: string;
-}
 
 interface UsersManagerProps {
   users: User[];
-  invites: Invite[];
   currentUser: User;
   onRefresh: () => void;
 }
 
-const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser, onRefresh }) => {
+const UsersManager: React.FC<UsersManagerProps> = ({ users, currentUser, onRefresh }) => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [revokeInvite, setRevokeInvite] = useState<Invite | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const canInviteUsers = hasPermission(currentUser.permissions, 'invite_users');
@@ -49,42 +34,50 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
     return canAssignRoles && currentUser.role_level > targetUser.role_level;
   };
 
-  const handleInviteUser = async (inviteData: Partial<Invite>) => {
-    const role = getRoleByName(inviteData.role_name);
+  const handleAddUser = async (userData: Partial<User>) => {
+    const role = getRoleByName(userData.role_name);
     if (!role) return;
 
     setIsLoading(true);
     try {
-      const discordId = normalizeDiscordId(inviteData.discord_id);
+      const discordId = normalizeDiscordId(userData.discord_id);
+      const { data: existingUser, error: lookupError } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url, email')
+        .eq('discord_id', discordId)
+        .maybeSingle();
+
+      if (lookupError) throw lookupError;
+
+      const username = userData.display_name || existingUser?.username || `discord-${discordId}`;
       const payload = {
         discord_id: discordId,
-        display_name: inviteData.display_name || '',
-        avatar_url: inviteData.avatar_url || '',
+        email: existingUser?.email || null,
+        username,
+        display_name: userData.display_name || existingUser?.display_name || username,
+        avatar_url: userData.avatar_url || existingUser?.avatar_url || '',
         role_name: role.role_name,
         role_level: role.role_level,
         permissions: role.permissions,
-        status: 'pending',
-        invited_by: currentUser.id
+        dashboard_access: true
       };
 
-      const { error } = await supabase.from('user_invites').upsert(payload, { onConflict: 'discord_id' });
-      if (error) throw error;
-
-      await supabase
-        .from('users')
-        .update({
-          role_name: role.role_name,
-          role_level: role.role_level,
-          permissions: role.permissions,
-          dashboard_access: true
-        })
-        .eq('discord_id', discordId);
+      if (existingUser) {
+        const { error } = await supabase.from('users').update(payload).eq('discord_id', discordId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('users').insert({
+          id: `pending-${discordId}`,
+          ...payload
+        });
+        if (error) throw error;
+      }
 
       onRefresh();
-      setShowInviteForm(false);
+      setShowAddForm(false);
     } catch (error) {
-      console.error('Error inviting user:', error);
-      alert('Failed to save invite.');
+      console.error('Error adding user:', error);
+      alert('Failed to save user access.');
     } finally {
       setIsLoading(false);
     }
@@ -120,33 +113,16 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
     }
   };
 
-  const handleConfirmRevokeInvite = async () => {
-    if (!revokeInvite) return;
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase.from('user_invites').update({ status: 'revoked' }).eq('id', revokeInvite.id);
-      if (error) throw error;
-      onRefresh();
-      setRevokeInvite(null);
-    } catch (error) {
-      console.error('Error revoking invite:', error);
-      alert('Failed to revoke invite.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="mb-8 rounded-lg border-2 p-4 shadow-xl md:p-6 bb-panel">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-2xl font-black text-stone-50">Users & Access</h2>
-          <p className="text-sm text-red-100/80">{users.length} signed-in users, {invites.length} saved access grants</p>
+          <p className="text-sm text-red-100/80">{users.length} users in the access list</p>
         </div>
         {canInviteUsers && (
           <button
-            onClick={() => setShowInviteForm(true)}
+            onClick={() => setShowAddForm(true)}
             disabled={isLoading}
             className="flex items-center justify-center space-x-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold text-red-50 transition-all duration-200 hover:scale-105 disabled:opacity-50"
             style={{ backgroundColor: 'rgba(127, 29, 29, 0.35)', borderColor: 'rgba(239, 68, 68, 0.55)' }}
@@ -157,7 +133,7 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
         )}
       </div>
 
-      <div className="mb-8 overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b border-red-900/40 text-left">
@@ -170,7 +146,7 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
           </thead>
           <tbody>
             {users.map((targetUser) => (
-              <tr key={targetUser.id} className="border-b border-red-900/20 hover:bg-red-950/20">
+              <tr key={targetUser.discord_id || targetUser.id} className="border-b border-red-900/20 hover:bg-red-950/20">
                 <td className="px-2 py-3">
                   <div className="flex items-center gap-3">
                     <div
@@ -222,52 +198,17 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
         </table>
       </div>
 
-      <h3 className="mb-4 text-xl font-black text-stone-50">Saved Access</h3>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {invites.map((invite) => (
-          <div
-            key={invite.id}
-            className="rounded-lg border p-4"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.22)', borderColor: 'rgba(185, 28, 28, 0.35)' }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="truncate font-semibold text-stone-50">{invite.display_name || invite.discord_id}</h4>
-                <p className="truncate text-sm text-red-100/80">Discord ID: {invite.discord_id}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded border border-red-500/40 bg-red-500/15 px-2 py-1 text-xs text-red-100">
-                    {invite.role_name}
-                  </span>
-                  <span className="rounded border border-stone-500/40 bg-stone-500/15 px-2 py-1 text-xs text-stone-200">
-                    {invite.status}
-                  </span>
-                </div>
-              </div>
-              {invite.status === 'pending' && canInviteUsers && (
-                <button
-                  onClick={() => setRevokeInvite(invite)}
-                  className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/15"
-                  aria-label={`Remove saved access for ${invite.discord_id}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {invites.length === 0 && (
+      {users.length === 0 && (
         <div className="rounded-lg border border-red-900/40 bg-black/20 p-8 text-center text-red-100">
-          No saved access yet.
+          No users yet.
         </div>
       )}
 
-      {showInviteForm && (
-        <InviteModal
+      {showAddForm && (
+        <AddUserModal
           currentUser={currentUser}
-          onSave={handleInviteUser}
-          onClose={() => setShowInviteForm(false)}
+          onSave={handleAddUser}
+          onClose={() => setShowAddForm(false)}
           isLoading={isLoading}
         />
       )}
@@ -281,28 +222,18 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
           isLoading={isLoading}
         />
       )}
-
-      <ConfirmModal
-        isOpen={Boolean(revokeInvite)}
-        title="Remove Access"
-        message={`Remove saved access for ${revokeInvite?.discord_id}?`}
-        confirmLabel="Remove Access"
-        isLoading={isLoading}
-        onCancel={() => setRevokeInvite(null)}
-        onConfirm={handleConfirmRevokeInvite}
-      />
     </div>
   );
 };
 
-interface InviteModalProps {
+interface AddUserModalProps {
   currentUser: User;
-  onSave: (invite: Partial<Invite>) => void;
+  onSave: (user: Partial<User>) => void;
   onClose: () => void;
   isLoading: boolean;
 }
 
-const InviteModal: React.FC<InviteModalProps> = ({ currentUser, onSave, onClose, isLoading }) => {
+const AddUserModal: React.FC<AddUserModalProps> = ({ currentUser, onSave, onClose, isLoading }) => {
   const availableRoles = getAssignableRoles(currentUser.role_level);
   const roleOptions: SelectOption[] = availableRoles.map((role) => ({
     value: role.role_name,
@@ -374,7 +305,7 @@ const InviteModal: React.FC<InviteModalProps> = ({ currentUser, onSave, onClose,
             />
           </label>
 
-          <ModalActions onClose={onClose} isLoading={isLoading} action="Save Access" />
+          <ModalActions onClose={onClose} isLoading={isLoading} action="Save User" />
         </form>
       </div>
     </div>

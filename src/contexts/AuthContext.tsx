@@ -1,12 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import {
-  getBuiltInRoleForDiscordId,
-  getRoleByName,
-  normalizeDiscordId,
-  normalizeEmail
-} from '../lib/roles';
+import { normalizeDiscordId, normalizeEmail } from '../lib/roles';
 
 export interface User {
   id: string;
@@ -29,16 +24,6 @@ interface AuthContextType {
   updateUser: (updates: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
-}
-
-interface InviteRecord {
-  discord_id: string;
-  role_name: string;
-  role_level?: number;
-  permissions?: string[];
-  display_name?: string;
-  avatar_url?: string;
-  status?: string;
 }
 
 interface DiscordIdentityProfile {
@@ -108,63 +93,23 @@ const extractDiscordProfile = (authUser: SupabaseUser): DiscordIdentityProfile |
   };
 };
 
-const buildProfilePayload = (
-  authId: string,
-  discordProfile: DiscordIdentityProfile,
-  roleName: string
-) => {
-  const role = getRoleByName(roleName) || getBuiltInRoleForDiscordId(discordProfile.discordId);
-  const safeRole = role || {
-    role_name: 'Viewer',
-    role_level: 0,
-    permissions: ['view_content']
-  };
-
-  return {
-    id: authId,
-    discord_id: discordProfile.discordId,
-    email: discordProfile.email || null,
-    username: discordProfile.username,
-    display_name: discordProfile.displayName,
-    avatar_url: discordProfile.avatarUrl,
-    dashboard_access: safeRole.role_level > 0,
-    permissions: safeRole.permissions,
-    role_level: safeRole.role_level,
-    role_name: safeRole.role_name
-  };
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const findInvite = async (discordId: string) => {
+  const claimProfile = async (discordProfile: DiscordIdentityProfile) => {
     const { data, error } = await supabase
-      .from('user_invites')
-      .select('*')
-      .eq('discord_id', normalizeDiscordId(discordId))
-      .in('status', ['pending', 'accepted'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Invite lookup error:', error);
-      return null;
-    }
-
-    return data as InviteRecord | null;
-  };
-
-  const upsertProfile = async (profile: Partial<User>) => {
-    const { data, error } = await supabase
-      .from('users')
-      .upsert(profile, { onConflict: 'discord_id' })
-      .select('*')
+      .rpc('claim_user_profile', {
+        p_discord_id: discordProfile.discordId,
+        p_email: discordProfile.email || null,
+        p_username: discordProfile.username,
+        p_display_name: discordProfile.displayName,
+        p_avatar_url: discordProfile.avatarUrl
+      })
       .single();
 
     if (error) {
-      console.error('Profile upsert error:', error);
+      console.error('Profile claim error:', error);
       throw error;
     }
 
@@ -186,64 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const builtInRole = getBuiltInRoleForDiscordId(discordProfile.discordId);
-
     try {
-      const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('discord_id', discordProfile.discordId)
-        .maybeSingle();
-
-      if (builtInRole) {
-        const ownerProfile = await upsertProfile({
-          ...buildProfilePayload(authUser.id, discordProfile, builtInRole.role_name),
-          dashboard_access: true
-        });
-        setUser(ownerProfile);
-        return;
-      }
-
-      const invite = await findInvite(discordProfile.discordId);
-
-      if (invite) {
-        const inviteRole = getRoleByName(invite.role_name);
-        const invitedProfile = await upsertProfile({
-          ...buildProfilePayload(authUser.id, discordProfile, inviteRole?.role_name || invite.role_name),
-          display_name: profile?.display_name || invite.display_name || discordProfile.displayName,
-          avatar_url: profile?.avatar_url || invite.avatar_url || discordProfile.avatarUrl,
-          dashboard_access: true
-        });
-
-        await supabase
-          .from('user_invites')
-          .update({
-            status: 'accepted',
-            accepted_by: authUser.id,
-            accepted_at: new Date().toISOString()
-          })
-          .eq('discord_id', discordProfile.discordId)
-          .eq('status', 'pending');
-
-        setUser(invitedProfile);
-        return;
-      }
-
-      if (profile) {
-        const refreshedProfile = await upsertProfile({
-          ...profile,
-          id: authUser.id,
-          email: discordProfile.email || profile.email || null,
-          username: discordProfile.username || profile.username,
-          display_name: profile.display_name || discordProfile.displayName,
-          avatar_url: discordProfile.avatarUrl || profile.avatar_url || ''
-        });
-        setUser(refreshedProfile);
-        return;
-      }
-
-      const viewerProfile = await upsertProfile(buildProfilePayload(authUser.id, discordProfile, 'Viewer'));
-      setUser(viewerProfile);
+      const claimedProfile = await claimProfile(discordProfile);
+      setUser(claimedProfile);
     } catch (error) {
       console.error('Error loading profile:', error);
       setUser(null);
