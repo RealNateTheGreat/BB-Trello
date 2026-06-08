@@ -70,13 +70,15 @@ const extractDiscordProfile = (authUser: SupabaseUser): DiscordIdentityProfile |
   const metadata = (authUser.user_metadata || {}) as Record<string, unknown>;
   const discordId = normalizeDiscordId(
     getString(
-      discordIdentity?.provider_id,
       identityData.provider_id,
       identityData.sub,
       identityData.id,
+      identityData.user_id,
+      discordIdentity?.provider_id,
       metadata.provider_id,
       metadata.sub,
-      metadata.id
+      metadata.id,
+      metadata.user_id
     )
   );
 

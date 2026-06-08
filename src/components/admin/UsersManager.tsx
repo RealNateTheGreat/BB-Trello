@@ -12,6 +12,8 @@ import {
   normalizeDiscordId
 } from '../../lib/roles';
 import ImageUpload from '../ImageUpload';
+import ConfirmModal from '../ui/ConfirmModal';
+import CustomSelect, { SelectOption } from '../ui/CustomSelect';
 
 interface Invite {
   id: string;
@@ -35,6 +37,7 @@ interface UsersManagerProps {
 const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser, onRefresh }) => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [revokeInvite, setRevokeInvite] = useState<Invite | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const canInviteUsers = hasPermission(currentUser.permissions, 'invite_users');
@@ -117,14 +120,15 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
     }
   };
 
-  const handleRevokeInvite = async (invite: Invite) => {
-    if (!confirm(`Remove saved access for ${invite.discord_id}?`)) return;
+  const handleConfirmRevokeInvite = async () => {
+    if (!revokeInvite) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('user_invites').update({ status: 'revoked' }).eq('id', invite.id);
+      const { error } = await supabase.from('user_invites').update({ status: 'revoked' }).eq('id', revokeInvite.id);
       if (error) throw error;
       onRefresh();
+      setRevokeInvite(null);
     } catch (error) {
       console.error('Error revoking invite:', error);
       alert('Failed to revoke invite.');
@@ -241,7 +245,7 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
               </div>
               {invite.status === 'pending' && canInviteUsers && (
                 <button
-                  onClick={() => handleRevokeInvite(invite)}
+                  onClick={() => setRevokeInvite(invite)}
                   className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/15"
                   aria-label={`Remove saved access for ${invite.discord_id}`}
                 >
@@ -277,6 +281,16 @@ const UsersManager: React.FC<UsersManagerProps> = ({ users, invites, currentUser
           isLoading={isLoading}
         />
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(revokeInvite)}
+        title="Remove Access"
+        message={`Remove saved access for ${revokeInvite?.discord_id}?`}
+        confirmLabel="Remove Access"
+        isLoading={isLoading}
+        onCancel={() => setRevokeInvite(null)}
+        onConfirm={handleConfirmRevokeInvite}
+      />
     </div>
   );
 };
@@ -290,6 +304,11 @@ interface InviteModalProps {
 
 const InviteModal: React.FC<InviteModalProps> = ({ currentUser, onSave, onClose, isLoading }) => {
   const availableRoles = getAssignableRoles(currentUser.role_level);
+  const roleOptions: SelectOption[] = availableRoles.map((role) => ({
+    value: role.role_name,
+    label: role.role_name,
+    description: role.description
+  }));
   const [formData, setFormData] = useState({
     discord_id: '',
     display_name: '',
@@ -338,18 +357,12 @@ const InviteModal: React.FC<InviteModalProps> = ({ currentUser, onSave, onClose,
 
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-red-100">Rank</span>
-            <select
+            <CustomSelect
               value={formData.role_name}
-              onChange={(e) => setFormData({ ...formData, role_name: e.target.value })}
-              className="bb-input"
-              required
-            >
-              {availableRoles.map((role) => (
-                <option key={role.role_name} value={role.role_name}>
-                  {role.role_name}
-                </option>
-              ))}
-            </select>
+              options={roleOptions}
+              onChange={(roleName) => setFormData({ ...formData, role_name: roleName })}
+              ariaLabel="Access rank"
+            />
           </label>
 
           <label className="block">
@@ -382,6 +395,11 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, currentUser, onSave
   const roleOptions = currentRole && !assignableRoles.some((role) => role.role_name === currentRole.role_name)
     ? [currentRole, ...assignableRoles]
     : assignableRoles;
+  const customRoleOptions: SelectOption[] = roleOptions.map((role) => ({
+    value: role.role_name,
+    label: role.role_name,
+    description: role.description
+  }));
   const roleLocked = user.discord_id === OWNER_DISCORD_ID || user.id === currentUser.id;
   const [formData, setFormData] = useState({
     display_name: user.display_name || user.username,
@@ -446,18 +464,13 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, currentUser, onSave
 
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-red-100">Rank</span>
-            <select
+            <CustomSelect
               value={formData.role_name}
-              onChange={(e) => handleRoleChange(e.target.value)}
-              className="bb-input"
+              options={customRoleOptions}
+              onChange={handleRoleChange}
               disabled={roleLocked}
-            >
-              {roleOptions.map((role) => (
-                <option key={role.role_name} value={role.role_name}>
-                  {role.role_name}
-                </option>
-              ))}
-            </select>
+              ariaLabel="User rank"
+            />
           </label>
 
           <label className="block">
