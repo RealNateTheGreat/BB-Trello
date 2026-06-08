@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Crown, Shield, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Crown, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ROLE_DEFINITIONS } from '../lib/roles';
@@ -92,13 +92,9 @@ const Credits: React.FC = () => {
         </div>
 
         <section className="mb-10 rounded-lg border-2 p-6 shadow-2xl bb-panel md:p-8">
-          <div className="inline-flex items-center rounded-lg border border-red-500/40 bg-red-950/25 px-3 py-2 text-red-100">
-            <Star className="mr-2 h-4 w-4" />
-            <span className="text-sm font-semibold">Hall of Steel</span>
-          </div>
-          <h2 className="mt-5 text-3xl font-black text-stone-50 md:text-5xl">The Names Behind The Blade</h2>
+          <h2 className="text-3xl font-black text-stone-50 md:text-5xl">The Names Behind The Blade</h2>
           <p className="mt-4 max-w-3xl text-stone-200">
-            A roll call for the people shaping Broken Blade, with ranks shown cleanly and private identifiers kept out of sight.
+            A roll call for the people shaping Broken Blade
           </p>
         </section>
 
@@ -112,7 +108,7 @@ const Credits: React.FC = () => {
             {sortedCredits.map((credit) => (
               <article
                 key={credit.id}
-                className={`relative overflow-hidden rounded-lg border-2 p-5 shadow-xl transition-all duration-300 hover:-translate-y-1 ${
+                className={`rounded-lg border-2 p-5 shadow-xl ${
                   credit.featured ? 'md:col-span-2 xl:col-span-1' : ''
                 }`}
                 style={{
@@ -120,8 +116,7 @@ const Credits: React.FC = () => {
                   borderColor: credit.featured ? 'rgba(248, 113, 113, 0.7)' : 'rgba(185, 28, 28, 0.48)'
                 }}
               >
-                <div className="absolute right-0 top-0 h-24 w-24 bg-gradient-to-bl from-red-500/20 to-transparent" />
-                <div className="relative flex items-start space-x-4">
+                <div className="flex items-start space-x-4">
                   <div
                     className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2"
                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.32)', borderColor: 'rgba(239, 68, 68, 0.54)' }}
@@ -142,12 +137,10 @@ const Credits: React.FC = () => {
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <h3 className="truncate text-2xl font-black text-stone-50">{credit.display_name}</h3>
-                      {credit.featured && <Sparkles className="h-5 w-5 text-red-200" />}
                     </div>
                     <p className="text-sm font-semibold uppercase tracking-[0.14em] text-red-200">
                       {credit.role_name}
                     </p>
-                    {credit.title && <p className="mt-1 text-stone-200">{credit.title}</p>}
                   </div>
                 </div>
 

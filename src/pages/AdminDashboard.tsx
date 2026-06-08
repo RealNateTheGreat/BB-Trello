@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Award, Bell, FolderKanban, Image, Shield, Users } from 'lucide-react';
+import { ArrowLeft, Award, Bell, FolderKanban, Shield, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AnnouncementsManager from '../components/admin/AnnouncementsManager';
 import BoardsManager from '../components/admin/BoardsManager';
 import CreditsManager from '../components/admin/CreditsManager';
 import UsersManager from '../components/admin/UsersManager';
-import WebLogosManager from '../components/admin/WebLogosManager';
 import { useAuth, User } from '../contexts/AuthContext';
 import { hasPermission } from '../lib/roles';
 import { supabase } from '../lib/supabase';
@@ -16,6 +15,7 @@ interface Category {
   slug: string;
   description?: string;
   icon?: string;
+  icon_url?: string;
 }
 
 interface Page {
@@ -24,7 +24,7 @@ interface Page {
   title: string;
   content?: string;
   image_url?: string;
-  metadata: Record<string, unknown>;
+  media_urls?: string[];
   status: string;
   created_by?: string;
 }
@@ -66,17 +66,7 @@ interface Announcement {
   created_at: string;
 }
 
-interface WebLogo {
-  id: string;
-  name: string;
-  type: 'banner' | 'loading' | 'favicon' | 'logo';
-  image_url: string;
-  is_active: boolean;
-  description?: string;
-  created_at: string;
-}
-
-type ManagementTab = 'boards' | 'users' | 'credits' | 'announcements' | 'branding';
+type ManagementTab = 'boards' | 'users' | 'credits' | 'announcements';
 
 const ManagementDashboard: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -87,7 +77,6 @@ const ManagementDashboard: React.FC = () => {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [webLogos, setWebLogos] = useState<WebLogo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const tabs = useMemo(() => {
@@ -120,12 +109,6 @@ const ManagementDashboard: React.FC = () => {
         label: 'Announcements',
         icon: Bell,
         visible: hasPermission(user.permissions, 'manage_announcements')
-      },
-      {
-        id: 'branding' as ManagementTab,
-        label: 'Branding',
-        icon: Image,
-        visible: hasPermission(user.permissions, 'manage_branding')
       }
     ].filter((tab) => tab.visible);
   }, [user]);
@@ -156,16 +139,14 @@ const ManagementDashboard: React.FC = () => {
         usersResult,
         invitesResult,
         creditsResult,
-        announcementsResult,
-        webLogosResult
+        announcementsResult
       ] = await Promise.all([
         supabase.from('categories').select('*').order('name'),
         supabase.from('pages').select('*').order('title'),
         supabase.from('users').select('*').order('role_level', { ascending: false }).order('username'),
         supabase.from('user_invites').select('*').order('created_at', { ascending: false }),
         supabase.from('credits').select('*').order('sort_order', { ascending: true }).order('display_name'),
-        supabase.from('announcements').select('*').order('priority', { ascending: true }).order('created_at', { ascending: false }),
-        supabase.from('web_logos').select('*').order('type').order('created_at', { ascending: false })
+        supabase.from('announcements').select('*').order('priority', { ascending: true }).order('created_at', { ascending: false })
       ]);
 
       if (categoriesResult.error) console.error('Categories fetch error:', categoriesResult.error);
@@ -174,7 +155,6 @@ const ManagementDashboard: React.FC = () => {
       if (invitesResult.error) console.error('Invites fetch error:', invitesResult.error);
       if (creditsResult.error) console.error('Credits fetch error:', creditsResult.error);
       if (announcementsResult.error) console.error('Announcements fetch error:', announcementsResult.error);
-      if (webLogosResult.error) console.error('Web logos fetch error:', webLogosResult.error);
 
       setCategories((categoriesResult.data || []) as Category[]);
       setPages((pagesResult.data || []) as Page[]);
@@ -182,7 +162,6 @@ const ManagementDashboard: React.FC = () => {
       setInvites((invitesResult.data || []) as Invite[]);
       setCredits((creditsResult.data || []) as Credit[]);
       setAnnouncements((announcementsResult.data || []) as Announcement[]);
-      setWebLogos((webLogosResult.data || []) as WebLogo[]);
     } catch (error) {
       console.error('Error fetching management data:', error);
     } finally {
@@ -252,36 +231,8 @@ const ManagementDashboard: React.FC = () => {
         </div>
 
         <section className="mb-8 overflow-hidden rounded-lg border-2 p-6 shadow-2xl bb-panel md:p-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200">Admin Workbench</p>
-              <h2 className="mt-2 text-3xl font-black text-stone-50 md:text-5xl">Control Room</h2>
-            </div>
-            <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border-2"
-              style={{ backgroundColor: 'rgba(127, 29, 29, 0.24)', borderColor: 'rgba(239, 68, 68, 0.56)' }}
-            >
-              <Shield className="h-8 w-8 text-red-100" />
-            </div>
-          </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Rank</p>
-              <p className="mt-2 text-lg font-black text-stone-50">{user.role_name}</p>
-            </div>
-            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Boards</p>
-              <p className="mt-2 text-2xl font-black text-stone-50">{categories.length}</p>
-            </div>
-            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Posts</p>
-              <p className="mt-2 text-2xl font-black text-stone-50">{pages.length}</p>
-            </div>
-            <div className="rounded-lg border border-red-900/45 bg-black/20 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-200">Staff</p>
-              <p className="mt-2 text-2xl font-black text-stone-50">{users.length}</p>
-            </div>
-          </div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-200">Admin Workbench</p>
+          <h2 className="mt-2 text-3xl font-black text-stone-50 md:text-5xl">Control Room</h2>
         </section>
 
         <div className="mb-8 flex flex-wrap justify-center gap-2">
@@ -320,32 +271,9 @@ const ManagementDashboard: React.FC = () => {
           <AnnouncementsManager announcements={announcements} onRefresh={fetchData} />
         )}
 
-        {activeTab === 'branding' && (
-          <WebLogosManager webLogos={webLogos} onRefresh={fetchData} />
-        )}
-
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-5">
-          <Stat label="Boards" value={categories.length} />
-          <Stat label="Posts" value={pages.length} />
-          <Stat label="Users" value={users.length} />
-          <Stat label="Invites" value={invites.filter((invite) => invite.status === 'pending').length} />
-          <Stat label="Credits" value={credits.filter((credit) => credit.is_visible !== false).length} />
-        </div>
       </div>
     </main>
   );
 };
-
-interface StatProps {
-  label: string;
-  value: number;
-}
-
-const Stat: React.FC<StatProps> = ({ label, value }) => (
-  <div className="rounded-lg border-2 p-4 text-center shadow-xl bb-panel md:p-5">
-    <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-red-200">{label}</h3>
-    <p className="text-3xl font-black text-stone-50">{value}</p>
-  </div>
-);
 
 export default ManagementDashboard;

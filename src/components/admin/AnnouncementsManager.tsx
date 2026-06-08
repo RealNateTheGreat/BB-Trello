@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Save, Plus, Trash2, Edit3, X, Megaphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ConfirmModal from '../ui/ConfirmModal';
+import CustomCheckbox from '../ui/CustomCheckbox';
+import CustomSelect, { SelectOption } from '../ui/CustomSelect';
 
 interface Announcement {
   id: string;
@@ -15,6 +18,13 @@ interface Announcement {
 
 type AnnouncementType = Announcement['type'];
 
+const typeOptions: SelectOption[] = [
+  { value: 'info', label: 'Info' },
+  { value: 'warning', label: 'Warning' },
+  { value: 'success', label: 'Success' },
+  { value: 'error', label: 'Error' }
+];
+
 interface AnnouncementsManagerProps {
   announcements: Announcement[];
   onRefresh: () => void;
@@ -26,6 +36,7 @@ const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
 }) => {
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deleteAnnouncement, setDeleteAnnouncement] = useState<Announcement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSaveAnnouncement = async (announcementData: Partial<Announcement>) => {
@@ -57,18 +68,19 @@ const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
     }
   };
 
-  const handleDeleteAnnouncement = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this announcement?')) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteAnnouncement) return;
     
     setIsLoading(true);
     try {
       const { error } = await supabase
         .from('announcements')
         .delete()
-        .eq('id', id);
+        .eq('id', deleteAnnouncement.id);
       
       if (error) throw error;
       onRefresh();
+      setDeleteAnnouncement(null);
     } catch (error) {
       console.error('Error deleting announcement:', error);
       alert('Failed to delete announcement. Please try again.');
@@ -135,7 +147,7 @@ const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
                       <Edit3 className="w-4 h-4 text-amber-400" />
                     </button>
                     <button
-                      onClick={() => handleDeleteAnnouncement(announcement.id)}
+                      onClick={() => setDeleteAnnouncement(announcement)}
                       className="p-2 rounded-lg hover:bg-red-500/20 transition-colors"
                     >
                       <Trash2 className="w-4 h-4 text-red-400" />
@@ -206,7 +218,7 @@ const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
                         <Edit3 className="w-4 h-4 text-amber-400" />
                       </button>
                       <button
-                        onClick={() => handleDeleteAnnouncement(announcement.id)}
+                        onClick={() => setDeleteAnnouncement(announcement)}
                         className="p-2 rounded-lg hover:bg-red-500/20 transition-colors"
                       >
                         <Trash2 className="w-4 h-4 text-red-400" />
@@ -232,6 +244,16 @@ const AnnouncementsManager: React.FC<AnnouncementsManagerProps> = ({
           isLoading={isLoading}
         />
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(deleteAnnouncement)}
+        title="Delete Announcement"
+        message={`Delete "${deleteAnnouncement?.title}"?`}
+        confirmLabel="Delete Announcement"
+        isLoading={isLoading}
+        onCancel={() => setDeleteAnnouncement(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };
@@ -344,20 +366,12 @@ const AnnouncementEditModal: React.FC<AnnouncementEditModalProps> = ({
               <label className="block text-amber-200 text-sm font-medium mb-2">
                 Type
               </label>
-              <select
+              <CustomSelect
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as AnnouncementType })}
-                className="w-full px-4 py-3 rounded-lg border-2 text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                style={{ 
-                  backgroundColor: 'rgba(74, 55, 40, 0.3)', 
-                  borderColor: '#8B6F47'
-                }}
-              >
-                <option value="info">Info</option>
-                <option value="warning">Warning</option>
-                <option value="success">Success</option>
-                <option value="error">Error</option>
-              </select>
+                options={typeOptions}
+                onChange={(value) => setFormData({ ...formData, type: value as AnnouncementType })}
+                ariaLabel="Announcement type"
+              />
             </div>
 
             <div>
@@ -377,16 +391,12 @@ const AnnouncementEditModal: React.FC<AnnouncementEditModalProps> = ({
               />
             </div>
 
-            <div className="flex items-center">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                  className="w-4 h-4 text-amber-500 rounded focus:ring-amber-500"
-                />
-                <span className="text-amber-200 text-sm font-medium">Active</span>
-              </label>
+            <div className="flex items-end">
+              <CustomCheckbox
+                checked={formData.active}
+                onChange={(active) => setFormData({ ...formData, active })}
+                label="Active"
+              />
             </div>
           </div>
 

@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, FolderPlus, Plus, Save, Trash2, X } from 'lucide-react';
+import { Edit3, FileText, FolderKanban, FolderPlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../contexts/AuthContext';
 import { hasPermission } from '../../lib/roles';
+import { isVideoUrl } from '../../lib/media';
 import ImageUpload from '../ImageUpload';
+import MediaUpload from '../MediaUpload';
+import MarkdownContent from '../MarkdownContent';
+import ConfirmModal from '../ui/ConfirmModal';
+import CustomSelect, { SelectOption } from '../ui/CustomSelect';
 
 interface Category {
   id: string;
@@ -11,7 +16,10 @@ interface Category {
   slug: string;
   description?: string;
   icon?: string;
+  icon_url?: string;
 }
+
+type PageStatus = 'published' | 'draft' | 'archived';
 
 interface Page {
   id: string;
@@ -19,8 +27,8 @@ interface Page {
   title: string;
   content?: string;
   image_url?: string;
-  metadata: Record<string, unknown>;
-  status: string;
+  media_urls?: string[];
+  status: PageStatus;
   created_by?: string;
 }
 
@@ -31,6 +39,16 @@ interface BoardsManagerProps {
   onRefresh: () => void;
 }
 
+type DeleteTarget =
+  | { type: 'board'; category: Category }
+  | { type: 'post'; page: Page };
+
+const statusOptions: SelectOption[] = [
+  { value: 'published', label: 'Published', description: 'Visible on public boards' },
+  { value: 'draft', label: 'Draft', description: 'Hidden from public boards' },
+  { value: 'archived', label: 'Archived', description: 'Stored away from public boards' }
+];
+
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -38,12 +56,18 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
+const getPageMedia = (page: Page) => {
+  if (page.media_urls && page.media_urls.length > 0) return page.media_urls.filter(Boolean);
+  return page.image_url ? [page.image_url] : [];
+};
+
 const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, currentUser, onRefresh }) => {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [showPageForm, setShowPageForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const canManageContent = hasPermission(currentUser.permissions, 'manage_content');
@@ -91,38 +115,23 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
     }
   };
 
-  const handleDeleteCategory = async (category: Category) => {
-    if (!canDeleteContent) return;
-    if (!confirm(`Delete "${category.name}" and every post inside it?`)) return;
-
-    setIsLoading(true);
-    try {
-      const { error: pagesError } = await supabase.from('pages').delete().eq('category_id', category.id);
-      if (pagesError) throw pagesError;
-
-      const { error } = await supabase.from('categories').delete().eq('id', category.id);
-      if (error) throw error;
-
-      onRefresh();
-    } catch (error) {
-      console.error('Error deleting board:', error);
-      alert('Failed to delete board.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSavePage = async (pageData: Partial<Page>) => {
     if (!activeCategory) return;
     setIsLoading(true);
 
+    const mediaUrls = pageData.media_urls || [];
+    const payload = {
+      ...pageData,
+      image_url: mediaUrls[0] || ''
+    };
+
     try {
       if (editingPage) {
-        const { error } = await supabase.from('pages').update(pageData).eq('id', editingPage.id);
+        const { error } = await supabase.from('pages').update(payload).eq('id', editingPage.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('pages').insert({
-          ...pageData,
+          ...payload,
           category_id: activeCategory.id,
           created_by: currentUser.id
         });
@@ -140,18 +149,27 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
     }
   };
 
-  const handleDeletePage = async (page: Page) => {
-    if (!canDeleteContent) return;
-    if (!confirm(`Delete "${page.title}"?`)) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || !canDeleteContent) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('pages').delete().eq('id', page.id);
-      if (error) throw error;
+      if (deleteTarget.type === 'board') {
+        const { error: pagesError } = await supabase.from('pages').delete().eq('category_id', deleteTarget.category.id);
+        if (pagesError) throw pagesError;
+
+        const { error } = await supabase.from('categories').delete().eq('id', deleteTarget.category.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('pages').delete().eq('id', deleteTarget.page.id);
+        if (error) throw error;
+      }
+
       onRefresh();
+      setDeleteTarget(null);
     } catch (error) {
-      console.error('Error deleting post:', error);
-      alert('Failed to delete post.');
+      console.error('Error deleting board content:', error);
+      alert('Failed to delete.');
     } finally {
       setIsLoading(false);
     }
@@ -182,13 +200,14 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
           <button
             key={category.id}
             onClick={() => setActiveCategoryId(category.id)}
-            className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-all duration-200 ${
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-all duration-200 ${
               activeCategoryId === category.id
                 ? 'border-red-400 bg-red-700/35 text-stone-50'
                 : 'border-red-900/50 bg-black/20 text-red-100 hover:bg-red-950/35'
             }`}
           >
-            {category.name}
+            <BoardIcon category={category} small />
+            <span>{category.name}</span>
           </button>
         ))}
       </div>
@@ -196,9 +215,12 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
       {activeCategory ? (
         <>
           <div className="mb-5 flex flex-col justify-between gap-4 rounded-lg border border-red-900/40 bg-black/20 p-4 sm:flex-row sm:items-center">
-            <div>
-              <h3 className="text-xl font-bold text-stone-50">{activeCategory.name}</h3>
-              {activeCategory.description && <p className="mt-1 text-sm text-red-100/80">{activeCategory.description}</p>}
+            <div className="flex items-start gap-3">
+              <BoardIcon category={activeCategory} />
+              <div>
+                <h3 className="text-xl font-bold text-stone-50">{activeCategory.name}</h3>
+                {activeCategory.description && <p className="mt-1 text-sm text-red-100/80">{activeCategory.description}</p>}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {canManageCategories && (
@@ -212,7 +234,7 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
               )}
               {canDeleteContent && (
                 <button
-                  onClick={() => handleDeleteCategory(activeCategory)}
+                  onClick={() => setDeleteTarget({ type: 'board', category: activeCategory })}
                   className="rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/15"
                 >
                   Delete Board
@@ -231,49 +253,74 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {categoryPages.map((page) => (
-              <article
-                key={page.id}
-                className="rounded-lg border p-4 transition-all duration-200 hover:border-red-400/70 hover:bg-red-950/20"
-                style={{ backgroundColor: 'rgba(0, 0, 0, 0.22)', borderColor: 'rgba(185, 28, 28, 0.35)' }}
-              >
-                <div className="flex gap-4">
-                  {page.image_url && (
-                    <img src={page.image_url} alt={page.title} className="h-20 w-20 shrink-0 rounded-lg object-cover" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h4 className="truncate text-lg font-bold text-stone-50">{page.title}</h4>
-                        <span className="text-xs uppercase tracking-[0.14em] text-red-200">{page.status}</span>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        {canManageContent && (
-                          <button
-                            onClick={() => setEditingPage(page)}
-                            className="rounded-lg p-2 text-red-100 transition-colors hover:bg-red-950/40"
-                            aria-label={`Edit ${page.title}`}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </button>
-                        )}
-                        {canDeleteContent && (
-                          <button
-                            onClick={() => handleDeletePage(page)}
-                            className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/15"
-                            aria-label={`Delete ${page.title}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {categoryPages.map((page) => {
+              const media = getPageMedia(page);
+              const firstMedia = media[0];
+              return (
+                <article
+                  key={page.id}
+                  className="rounded-lg border p-4 transition-all duration-200 hover:border-red-400/70 hover:bg-red-950/20"
+                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.22)', borderColor: 'rgba(185, 28, 28, 0.35)' }}
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row">
+                    <div
+                      className="flex h-24 w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border text-red-100 sm:w-28"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.28)', borderColor: 'rgba(239, 68, 68, 0.42)' }}
+                    >
+                      {firstMedia ? (
+                        isVideoUrl(firstMedia) ? (
+                          <video src={firstMedia} className="h-full w-full object-cover" muted />
+                        ) : (
+                          <img src={firstMedia} alt={page.title} className="h-full w-full object-cover" />
+                        )
+                      ) : (
+                        <FileText className="h-8 w-8" />
+                      )}
                     </div>
-                    {page.content && <p className="line-clamp-2 text-sm text-stone-200">{page.content}</p>}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="truncate text-xl font-black text-stone-50">{page.title}</h4>
+                          <span className="mt-2 inline-flex rounded border border-red-900/50 bg-black/20 px-2 py-1 text-xs uppercase tracking-[0.14em] text-red-200">
+                            {page.status}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          {canManageContent && (
+                            <button
+                              onClick={() => setEditingPage(page)}
+                              className="rounded-lg p-2 text-red-100 transition-colors hover:bg-red-950/40"
+                              aria-label={`Edit ${page.title}`}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                          )}
+                          {canDeleteContent && (
+                            <button
+                              onClick={() => setDeleteTarget({ type: 'post', page })}
+                              className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/15"
+                              aria-label={`Delete ${page.title}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {page.content && (
+                        <div className="max-h-28 overflow-hidden">
+                          <MarkdownContent content={page.content} compact />
+                        </div>
+                      )}
+
+                      {media.length > 1 && <p className="mt-3 text-xs font-semibold text-red-100/75">{media.length} media files</p>}
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
 
           {categoryPages.length === 0 && (
@@ -312,7 +359,38 @@ const BoardsManager: React.FC<BoardsManagerProps> = ({ categories, pages, curren
           isLoading={isLoading}
         />
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        title={deleteTarget?.type === 'board' ? 'Delete Board' : 'Delete Post'}
+        message={
+          deleteTarget?.type === 'board'
+            ? `Delete "${deleteTarget.category.name}" and every post inside it?`
+            : `Delete "${deleteTarget?.page.title}"?`
+        }
+        confirmLabel={deleteTarget?.type === 'board' ? 'Delete Board' : 'Delete Post'}
+        isLoading={isLoading}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
+  );
+};
+
+const BoardIcon: React.FC<{ category: Category; small?: boolean }> = ({ category, small }) => {
+  const sizeClass = small ? 'h-7 w-7' : 'h-12 w-12';
+
+  return (
+    <span
+      className={`${sizeClass} flex shrink-0 items-center justify-center overflow-hidden rounded-lg border text-red-100`}
+      style={{ backgroundColor: 'rgba(127, 29, 29, 0.22)', borderColor: 'rgba(239, 68, 68, 0.42)' }}
+    >
+      {category.icon_url ? (
+        <img src={category.icon_url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <FolderKanban className={small ? 'h-4 w-4' : 'h-6 w-6'} />
+      )}
+    </span>
   );
 };
 
@@ -328,7 +406,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onClose
     name: category?.name || '',
     slug: category?.slug || '',
     description: category?.description || '',
-    icon: category?.icon || ''
+    icon_url: category?.icon_url || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -371,12 +449,11 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onClose
               className="bb-input min-h-24"
             />
           </Field>
-          <Field label="Icon Label">
-            <input
-              value={formData.icon}
-              onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-              className="bb-input"
-              placeholder="Optional"
+          <Field label="Board Icon">
+            <ImageUpload
+              currentImage={formData.icon_url}
+              onImageChange={(imageUrl) => setFormData({ ...formData, icon_url: imageUrl })}
+              className="h-20 w-20"
             />
           </Field>
           <ModalActions onClose={onClose} isLoading={isLoading} action={category ? 'Update Board' : 'Create Board'} />
@@ -398,35 +475,13 @@ const PageModal: React.FC<PageModalProps> = ({ page, categoryName, onSave, onClo
   const [formData, setFormData] = useState({
     title: page?.title || '',
     content: page?.content || '',
-    image_url: page?.image_url || '',
-    status: page?.status || 'published',
-    metadata: page?.metadata || {}
+    media_urls: page ? getPageMedia(page) : [],
+    status: (page?.status || 'published') as PageStatus
   });
-  const [newMetadataKey, setNewMetadataKey] = useState('');
-  const [newMetadataValue, setNewMetadataValue] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
-  };
-
-  const addMetadata = () => {
-    if (!newMetadataKey || !newMetadataValue) return;
-    setFormData({
-      ...formData,
-      metadata: {
-        ...formData.metadata,
-        [newMetadataKey]: newMetadataValue
-      }
-    });
-    setNewMetadataKey('');
-    setNewMetadataValue('');
-  };
-
-  const removeMetadata = (key: string) => {
-    const metadata = { ...formData.metadata };
-    delete metadata[key];
-    setFormData({ ...formData, metadata });
   };
 
   return (
@@ -454,22 +509,19 @@ const PageModal: React.FC<PageModalProps> = ({ page, categoryName, onSave, onClo
               />
             </Field>
             <Field label="Status">
-              <select
+              <CustomSelect
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="bb-input"
-              >
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-                <option value="archived">Archived</option>
-              </select>
+                options={statusOptions}
+                onChange={(value) => setFormData({ ...formData, status: value as PageStatus })}
+                ariaLabel="Post status"
+              />
             </Field>
           </div>
 
-          <Field label="Image">
-            <ImageUpload
-              currentImage={formData.image_url}
-              onImageChange={(imageUrl) => setFormData({ ...formData, image_url: imageUrl })}
+          <Field label="Media Upload">
+            <MediaUpload
+              currentMedia={formData.media_urls}
+              onMediaChange={(mediaUrls) => setFormData({ ...formData, media_urls: mediaUrls })}
               className="h-28 w-28"
             />
           </Field>
@@ -478,45 +530,15 @@ const PageModal: React.FC<PageModalProps> = ({ page, categoryName, onSave, onClo
             <textarea
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="bb-input min-h-28"
+              className="bb-input min-h-44"
             />
           </Field>
 
-          <Field label="Metadata">
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto]">
-              <input
-                value={newMetadataKey}
-                onChange={(e) => setNewMetadataKey(e.target.value)}
-                className="bb-input"
-                placeholder="Key"
-              />
-              <input
-                value={newMetadataValue}
-                onChange={(e) => setNewMetadataValue(e.target.value)}
-                className="bb-input"
-                placeholder="Value"
-              />
-              <button
-                type="button"
-                onClick={addMetadata}
-                className="rounded-lg border border-red-500/40 px-4 py-3 text-sm font-semibold text-red-100 hover:bg-red-950/30"
-              >
-                Add
-              </button>
+          {formData.content.trim() && (
+            <div className="rounded-lg border border-red-900/40 bg-black/20 p-4">
+              <MarkdownContent content={formData.content} compact />
             </div>
-            {Object.keys(formData.metadata).length > 0 && (
-              <div className="mt-3 rounded-lg border border-red-900/40 bg-black/20 p-3">
-                {Object.entries(formData.metadata).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between gap-3 py-1 text-sm">
-                    <span className="text-red-100">{key}: {String(value)}</span>
-                    <button type="button" onClick={() => removeMetadata(key)} className="text-red-300 hover:text-red-100">
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Field>
+          )}
 
           <ModalActions onClose={onClose} isLoading={isLoading} action={page ? 'Update Post' : 'Create Post'} />
         </form>

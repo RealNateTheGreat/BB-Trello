@@ -93,6 +93,7 @@ export type Database = {
           slug: string;
           description?: string;
           icon?: string;
+          icon_url?: string;
           created_at: string;
           updated_at: string;
         };
@@ -102,6 +103,7 @@ export type Database = {
           slug: string;
           description?: string;
           icon?: string;
+          icon_url?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -114,6 +116,7 @@ export type Database = {
           title: string;
           content?: string;
           image_url?: string;
+          media_urls: string[];
           metadata: Record<string, unknown>;
           status: string;
           created_by?: string;
@@ -126,6 +129,7 @@ export type Database = {
           title: string;
           content?: string;
           image_url?: string;
+          media_urls?: string[];
           metadata?: Record<string, unknown>;
           status?: string;
           created_by?: string;

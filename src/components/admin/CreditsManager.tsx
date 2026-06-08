@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Edit3, Plus, Save, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { User } from '../../contexts/AuthContext';
-import { ROLE_DEFINITIONS, hasPermission } from '../../lib/roles';
-import ImageUpload from '../ImageUpload';
+import { hasPermission } from '../../lib/roles';
+import ConfirmModal from '../ui/ConfirmModal';
+import CustomCheckbox from '../ui/CustomCheckbox';
+import CustomSelect, { SelectOption } from '../ui/CustomSelect';
 
 interface Credit {
   id: string;
@@ -26,11 +28,15 @@ interface CreditsManagerProps {
   onRefresh: () => void;
 }
 
+const CREDIT_MANAGER_ROLES = ['Web Owner', 'Broken Blade Staff', 'Web Admin'];
+
 const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, currentUser, onRefresh }) => {
   const [editingCredit, setEditingCredit] = useState<Credit | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deleteCredit, setDeleteCredit] = useState<Credit | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const canManageCredits = hasPermission(currentUser.permissions, 'manage_credits');
+  const canManageCredits =
+    hasPermission(currentUser.permissions, 'manage_credits') && CREDIT_MANAGER_ROLES.includes(currentUser.role_name);
 
   const handleSaveCredit = async (creditData: Partial<Credit>) => {
     setIsLoading(true);
@@ -54,14 +60,15 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
     }
   };
 
-  const handleDeleteCredit = async (credit: Credit) => {
-    if (!confirm(`Delete credit for "${credit.display_name}"?`)) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteCredit) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('credits').delete().eq('id', credit.id);
+      const { error } = await supabase.from('credits').delete().eq('id', deleteCredit.id);
       if (error) throw error;
       onRefresh();
+      setDeleteCredit(null);
     } catch (error) {
       console.error('Error deleting credit:', error);
       alert('Failed to delete credit.');
@@ -80,7 +87,7 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
         {canManageCredits && (
           <button
             onClick={() => setShowAddForm(true)}
-            disabled={isLoading}
+            disabled={isLoading || users.length === 0}
             className="flex items-center justify-center space-x-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold text-red-50 transition-all duration-200 hover:scale-105 disabled:opacity-50"
             style={{ backgroundColor: 'rgba(127, 29, 29, 0.35)', borderColor: 'rgba(239, 68, 68, 0.55)' }}
           >
@@ -115,7 +122,6 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
                   <div className="min-w-0">
                     <h3 className="truncate text-xl font-bold text-stone-50">{credit.display_name}</h3>
                     <p className="text-sm font-semibold uppercase tracking-[0.14em] text-red-200">{credit.role_name}</p>
-                    {credit.title && <p className="mt-1 text-sm text-stone-200">{credit.title}</p>}
                   </div>
                   {canManageCredits && (
                     <div className="flex shrink-0 gap-1">
@@ -127,7 +133,7 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteCredit(credit)}
+                        onClick={() => setDeleteCredit(credit)}
                         className="rounded-lg p-2 text-red-300 transition-colors hover:bg-red-500/15"
                         aria-label={`Delete ${credit.display_name}`}
                       >
@@ -146,6 +152,7 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
                     </span>
                   )}
                 </div>
+                {credit.contribution && <p className="mt-3 line-clamp-2 text-sm text-stone-200">{credit.contribution}</p>}
               </div>
             </div>
           </article>
@@ -158,7 +165,7 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
         </div>
       )}
 
-      {(editingCredit || showAddForm) && (
+      {(editingCredit || showAddForm) && canManageCredits && (
         <CreditModal
           credit={editingCredit}
           users={users}
@@ -170,6 +177,16 @@ const CreditsManager: React.FC<CreditsManagerProps> = ({ credits, users, current
           isLoading={isLoading}
         />
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(deleteCredit)}
+        title="Delete Credit"
+        message={`Delete credit for "${deleteCredit?.display_name}"?`}
+        confirmLabel="Delete Credit"
+        isLoading={isLoading}
+        onCancel={() => setDeleteCredit(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };
@@ -183,40 +200,54 @@ interface CreditModalProps {
 }
 
 const CreditModal: React.FC<CreditModalProps> = ({ credit, users, onSave, onClose, isLoading }) => {
+  const firstDiscordId = users.find((user) => user.discord_id)?.discord_id || '';
+  const [selectedDiscordId, setSelectedDiscordId] = useState(credit?.discord_id || firstDiscordId);
   const [formData, setFormData] = useState({
-    discord_id: credit?.discord_id || '',
-    display_name: credit?.display_name || '',
-    avatar_url: credit?.avatar_url || '',
-    role_name: credit?.role_name || 'Web Mod',
-    title: credit?.title || '',
     contribution: credit?.contribution || '',
     sort_order: credit?.sort_order || 0,
     featured: credit?.featured || false,
     is_visible: credit?.is_visible ?? true
   });
 
-  const handleUserSelect = (discordId: string) => {
-    const selectedUser = users.find((user) => user.discord_id === discordId);
-    if (!selectedUser) {
-      setFormData({ ...formData, discord_id: discordId });
-      return;
+  const userOptions = useMemo<SelectOption[]>(() => {
+    const options = users
+      .filter((user) => user.discord_id)
+      .map((user) => ({
+        value: user.discord_id,
+        label: user.display_name || user.username,
+        description: user.role_name
+      }));
+
+    if (credit?.discord_id && !options.some((option) => option.value === credit.discord_id)) {
+      options.unshift({
+        value: credit.discord_id,
+        label: credit.display_name,
+        description: credit.role_name
+      });
     }
 
-    setFormData({
-      ...formData,
-      discord_id: selectedUser.discord_id,
-      display_name: selectedUser.display_name || selectedUser.username,
-      avatar_url: selectedUser.avatar_url || '',
-      role_name: selectedUser.role_name
-    });
-  };
+    return options;
+  }, [credit, users]);
+
+  const selectedUser = users.find((user) => user.discord_id === selectedDiscordId);
+  const selectedLabel = selectedUser?.display_name || selectedUser?.username || credit?.display_name || '';
+  const selectedAvatar = selectedUser?.avatar_url || credit?.avatar_url || '';
+  const selectedRole = selectedUser?.role_name || credit?.role_name || 'Web Mod';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedDiscordId) return;
+
     onSave({
-      ...formData,
-      discord_id: formData.discord_id || null,
-      sort_order: Number(formData.sort_order) || 0
+      discord_id: selectedDiscordId,
+      display_name: selectedLabel,
+      avatar_url: selectedAvatar,
+      role_name: selectedRole,
+      title: '',
+      contribution: formData.contribution,
+      sort_order: Number(formData.sort_order) || 0,
+      featured: formData.featured,
+      is_visible: formData.is_visible
     });
   };
 
@@ -233,67 +264,35 @@ const CreditModal: React.FC<CreditModalProps> = ({ credit, users, onSave, onClos
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-red-100">Attach Discord User ID</span>
-            <input
-              value={formData.discord_id}
-              onChange={(e) => handleUserSelect(e.target.value)}
-              list="credit-users"
-              className="bb-input"
-              placeholder="Optional"
+            <span className="mb-2 block text-sm font-semibold text-red-100">User</span>
+            <CustomSelect
+              value={selectedDiscordId}
+              options={userOptions}
+              onChange={setSelectedDiscordId}
+              ariaLabel="Credit user"
             />
-            <datalist id="credit-users">
-              {users.map((user) => (
-                <option key={user.id} value={user.discord_id}>
-                  {user.display_name || user.username}
-                </option>
-              ))}
-            </datalist>
           </label>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-red-100">Display Name</span>
-              <input
-                value={formData.display_name}
-                onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-                className="bb-input"
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-red-100">Rank</span>
-              <select
-                value={formData.role_name}
-                onChange={(e) => setFormData({ ...formData, role_name: e.target.value })}
-                className="bb-input"
+          {selectedLabel && (
+            <div className="flex items-center gap-4 rounded-lg border border-red-900/40 bg-black/20 p-4">
+              <div
+                className="h-14 w-14 overflow-hidden rounded-lg border"
+                style={{ backgroundColor: 'rgba(127, 29, 29, 0.22)', borderColor: 'rgba(239, 68, 68, 0.42)' }}
               >
-                {ROLE_DEFINITIONS.map((role) => (
-                  <option key={role.role_name} value={role.role_name}>
-                    {role.role_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-red-100">Avatar</span>
-            <ImageUpload
-              currentImage={formData.avatar_url}
-              onImageChange={(imageUrl) => setFormData({ ...formData, avatar_url: imageUrl })}
-              className="h-24 w-24"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-red-100">Title</span>
-            <input
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="bb-input"
-              placeholder="Optional"
-            />
-          </label>
+                {selectedAvatar ? (
+                  <img src={selectedAvatar} alt={selectedLabel} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-lg font-black text-red-100">
+                    {selectedLabel.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-black text-stone-50">{selectedLabel}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-red-200">{selectedRole}</p>
+              </div>
+            </div>
+          )}
 
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-red-100">Contribution</span>
@@ -314,24 +313,20 @@ const CreditModal: React.FC<CreditModalProps> = ({ credit, users, onSave, onClos
                 className="bb-input"
               />
             </label>
-            <label className="flex items-center gap-2 pt-7 text-red-100">
-              <input
-                type="checkbox"
+            <div className="pt-7">
+              <CustomCheckbox
                 checked={formData.featured}
-                onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                className="h-4 w-4 rounded text-red-600 focus:ring-red-500"
+                onChange={(featured) => setFormData({ ...formData, featured })}
+                label="Featured"
               />
-              Featured
-            </label>
-            <label className="flex items-center gap-2 pt-7 text-red-100">
-              <input
-                type="checkbox"
+            </div>
+            <div className="pt-7">
+              <CustomCheckbox
                 checked={formData.is_visible}
-                onChange={(e) => setFormData({ ...formData, is_visible: e.target.checked })}
-                className="h-4 w-4 rounded text-red-600 focus:ring-red-500"
+                onChange={(isVisible) => setFormData({ ...formData, is_visible: isVisible })}
+                label="Visible"
               />
-              Visible
-            </label>
+            </div>
           </div>
 
           <div className="flex flex-col justify-end gap-2 border-t border-red-900/40 pt-5 sm:flex-row">
@@ -344,7 +339,7 @@ const CreditModal: React.FC<CreditModalProps> = ({ credit, users, onSave, onClos
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !selectedDiscordId}
               className="flex items-center justify-center space-x-2 rounded-lg border px-5 py-3 font-semibold text-stone-50 transition-all duration-200 hover:scale-105 disabled:opacity-50"
               style={{ backgroundColor: 'rgba(185, 28, 28, 0.62)', borderColor: 'rgba(239, 68, 68, 0.62)' }}
             >

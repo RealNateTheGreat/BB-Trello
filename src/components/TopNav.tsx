@@ -78,9 +78,12 @@ const TopNav: React.FC = () => {
 
           <button
             onClick={() => setIsAnnouncementsModalOpen(true)}
-            className={`${navButtonClass} min-w-[11.5rem]`}
+            className={`${navButtonClass} relative min-w-[11.5rem]`}
             style={navButtonStyle}
           >
+            <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)]">
+              <span className="absolute inset-0 rounded-full bg-red-400 opacity-75 animate-ping" />
+            </span>
             <Megaphone className="w-4 h-4" />
             <span>Announcements</span>
           </button>
@@ -171,9 +174,12 @@ const TopNav: React.FC = () => {
                   setIsAnnouncementsModalOpen(true);
                   setIsMobileMenuOpen(false);
                 }}
-                className={navButtonClass + ' w-full justify-start'}
+                className={navButtonClass + ' relative w-full justify-start'}
                 style={navButtonStyle}
               >
+                <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)]">
+                  <span className="absolute inset-0 rounded-full bg-red-400 opacity-75 animate-ping" />
+                </span>
                 <Megaphone className="w-5 h-5" />
                 <span>Announcements</span>
               </button>

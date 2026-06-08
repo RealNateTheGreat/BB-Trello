@@ -9,6 +9,7 @@ interface Category {
   slug: string;
   description?: string;
   icon?: string;
+  icon_url?: string;
 }
 
 interface PageRecord {
@@ -75,15 +76,19 @@ const Boards: React.FC = () => {
               <Link
                 key={category.id}
                 to={`/boards/${category.slug}`}
-                className="group rounded-lg border-2 p-5 shadow-xl transition-all duration-200 hover:-translate-y-1 hover:border-red-400/80"
+                className="group rounded-lg border-2 p-5 shadow-xl transition-all duration-200 hover:border-red-400/80 hover:bg-red-950/20"
                 style={{ backgroundColor: 'rgba(24, 18, 16, 0.88)', borderColor: 'rgba(185, 28, 28, 0.5)' }}
               >
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div
-                    className="flex h-12 w-12 items-center justify-center rounded-lg border text-red-100"
+                    className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border text-red-100"
                     style={{ backgroundColor: 'rgba(127, 29, 29, 0.25)', borderColor: 'rgba(239, 68, 68, 0.45)' }}
                   >
-                    <FolderKanban className="h-6 w-6" />
+                    {category.icon_url ? (
+                      <img src={category.icon_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <FolderKanban className="h-7 w-7" />
+                    )}
                   </div>
                   <ArrowRight className="h-5 w-5 text-red-200 transition-transform duration-200 group-hover:translate-x-1" />
                 </div>
